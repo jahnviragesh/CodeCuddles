@@ -1,63 +1,84 @@
+// CodeCuddles — static GitHub Pages edition
 const $ = (id) => document.getElementById(id);
+const STORAGE = { favourites: "codecuddles-favourites", playlists: "codecuddles-playlists" };
+let catalogue = [];
 let currentMood = "Trending Now";
-let currentSongs = [];
 
-function escapeHtml(value="") {
-  return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const readStore = (key, fallback=[]) => {
+  try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; }
+};
+const writeStore = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+const escapeHtml = (value="") => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const songKey = s => [s.title,s.artist,s.language].join("|");
+const allSongs = () => catalogue.flatMap(group => group.songs.map(song => ({...song,language:group.language})));
+function card(song) {
+  const key=encodeURIComponent(JSON.stringify(song));
+  const saved=readStore(STORAGE.favourites).some(s=>songKey(s)===songKey(song));
+  const cover=song.img ? '<img class="cover" src="'+escapeHtml(song.img)+'" alt="" onerror="this.style.display=\'none\'">' : '<div class="cover">♫</div>';
+  return '<article class="song-card">'+cover+'<div class="song-info"><b>'+escapeHtml(song.title)+'</b><small>'+escapeHtml(song.artist)+' · '+escapeHtml(song.language)+'</small></div><div class="song-actions"><button class="icon-btn" title="Favourite" data-fav="'+key+'">'+(saved?"♥":"♡")+'</button><button class="icon-btn" title="Add to playlist" data-add="'+key+'">＋</button><button class="icon-btn" title="Listen" data-listen="'+escapeHtml(song.link||"")+'" data-title="'+escapeHtml(song.title)+'" data-artist="'+escapeHtml(song.artist)+'">↗</button></div></article>';
 }
-function songCard(song) {
-  const safe = escapeHtml(JSON.stringify(song));
-  const cover = song.img ? `<img class="cover" src="${escapeHtml(song.img)}" alt="" onerror="this.outerHTML='<div class=&quot;cover&quot;>♫</div>'">` : `<div class="cover">♫</div>`;
-  return `<article class="song-card">${cover}<div class="song-info"><b>${escapeHtml(song.title)}</b><small>${escapeHtml(song.artist)} · ${escapeHtml(song.language || "")}</small></div><div class="song-actions"><button class="icon-btn" title="Add to favourites" data-fav='${safe}'>♡</button><button class="icon-btn" title="Listen" data-listen='${escapeHtml(song.link || "")}' data-title="${escapeHtml(song.title)}" data-artist="${escapeHtml(song.artist)}">↗</button></div></article>`;
+function renderSongs(songs, target="song-grid") {
+  $(target).innerHTML=songs.length?songs.map(card).join(""):'<div class="empty-state">No matches found. Try another mood or search.</div>';
 }
-async function loadSongs(message="") {
-  const params = new URLSearchParams({mood: currentMood, language:$("language").value, q:$("search").value, message});
-  $("results-title").textContent = message ? "Picked for your feeling" : `Songs for ${currentMood.toLowerCase()}`;
-  $("results-eyebrow").textContent = "YOUR MUSIC PICKS";
-  $("song-grid").innerHTML = `<div class="empty-state">Finding your music…</div>`;
-  const response = await fetch(`/api/songs?${params}`);
-  const data = await response.json();
-  currentMood = data.mood;
-  currentSongs = data.songs;
-  $("results-title").textContent = `Songs for ${currentMood.toLowerCase()}`;
-  $("song-grid").innerHTML = data.songs.length ? data.songs.map(songCard).join("") : `<div class="empty-state">No matches yet. Try another mood, language or search.</div>`;
+function moodFromText(text) {
+  const t=text.toLowerCase();
+  const map={Happy:["happy","good","cheerful","joy","upbeat","sunny"],Sad:["sad","down","heartbroken","cry","lonely"],Romantic:["love","romantic","date","crush"],Party:["party","dance","celebrate","club"],Chill:["chill","calm","relax","peaceful","study"],Motivational:["motivate","motivated","focus","workout","energy","inspire","morning"]};
+  for(const [m,words] of Object.entries(map)) if(words.some(w=>t.includes(w))) return m;
+  return "Trending Now";
 }
-async function loadFavourites() {
-  const songs = await (await fetch("/api/favourites")).json();
-  $("favourites-grid").innerHTML = songs.length ? songs.map(songCard).join("") : `<div class="empty-state">Your favourites will live here. Tap ♡ on any song to save it.</div>`;
+function filteredSongs(message="") {
+  const language=$("language").value, query=$("search").value.trim().toLowerCase();
+  let songs=allSongs();
+  if(currentMood!=="Trending Now") songs=songs.filter(s=>s.mood===currentMood||(s.secondary_moods||[]).includes(currentMood));
+  if(language!=="All languages") songs=songs.filter(s=>s.language===language);
+  if(query) songs=songs.filter(s=>(s.title+" "+s.artist+" "+s.album).toLowerCase().includes(query));
+  if(message && currentMood==="Trending Now") songs=songs.filter(s=>true);
+  return songs;
 }
-async function loadPlaylists() {
-  const lists = await (await fetch("/api/playlists")).json();
-  $("playlist-list").innerHTML = lists.length ? lists.map(p => `<div class="playlist-card"><b>${escapeHtml(p.name)}</b><small>${p.songs.length} saved song(s)</small>${p.songs.map(s=>`<small>♫ ${escapeHtml(s.title)} — ${escapeHtml(s.artist)}</small>`).join("")}</div>`).join("") : `<div class="empty-state">Create your first playlist to collect songs for every kind of day.</div>`;
+function loadSongs(message="") {
+  if(message) currentMood=moodFromText(message);
+  $("results-title").textContent=currentMood==="Trending Now"?"Songs to explore":'Songs for '+currentMood.toLowerCase();
+  $("results-eyebrow").textContent="YOUR MUSIC PICKS";
+  renderSongs(filteredSongs(message));
 }
-document.addEventListener("click", async e => {
-  const mood = e.target.closest("[data-mood]");
-  if (mood) { currentMood = mood.dataset.mood; $("search").value=""; await loadSongs(); }
-  const fav = e.target.closest("[data-fav]");
-  if (fav) { await fetch("/api/favourites",{method:"POST",headers:{"Content-Type":"application/json"},body:fav.dataset.fav}); fav.textContent="♥"; }
-  const listen = e.target.closest("[data-listen]");
-  if (listen) {
-    $("now-title").textContent=listen.dataset.title;
-    $("now-artist").textContent=listen.dataset.artist;
-    if (listen.dataset.listen) window.open(listen.dataset.listen,"_blank","noopener");
-  }
-  const nav = e.target.closest("[data-view]");
-  if (nav) {
-    document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
-    $(`${nav.dataset.view}-view`).classList.remove("hidden");
-    document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n===nav));
-    $("page-title").textContent = ({discover:"Find your sound.",favourites:"Your favourites.",playlists:"Your playlists."})[nav.dataset.view];
-    if(nav.dataset.view==="favourites") loadFavourites();
-    if(nav.dataset.view==="playlists") loadPlaylists();
-  }
+function loadFavourites(){renderSongs(readStore(STORAGE.favourites),"favourites-grid");}
+function loadPlaylists(){
+  const lists=readStore(STORAGE.playlists);
+  $("playlist-list").innerHTML=lists.length?lists.map((p,i)=>'<div class="playlist-card"><b>'+escapeHtml(p.name)+'</b><small>'+p.songs.length+' saved song(s)</small>'+p.songs.map(s=>'<small>♫ '+escapeHtml(s.title)+' — '+escapeHtml(s.artist)+'</small>').join("")+'<button class="icon-btn" data-delete-playlist="'+i+'" aria-label="Delete playlist">×</button></div>').join(""):'<div class="empty-state">Create your first playlist to collect songs for every kind of day.</div>';
+}
+function showView(name) {
+  document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
+  $(name+"-view").classList.remove("hidden");
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.view===name));
+  $("page-title").textContent=({discover:"Find your sound.",favourites:"Your favourites.",playlists:"Your playlists."})[name];
+  if(name==="favourites")loadFavourites();
+  if(name==="playlists")loadPlaylists();
+}
+document.addEventListener("click",e=>{
+  const mood=e.target.closest("[data-mood]");
+  if(mood){currentMood=mood.dataset.mood;$("search").value="";loadSongs();}
+  const nav=e.target.closest("[data-view]");if(nav)showView(nav.dataset.view);
+  const fav=e.target.closest("[data-fav]");
+  if(fav){const song=JSON.parse(decodeURIComponent(fav.dataset.fav));let items=readStore(STORAGE.favourites);const exists=items.some(s=>songKey(s)===songKey(song));items=exists?items.filter(s=>songKey(s)!==songKey(song)):[...items,song];writeStore(STORAGE.favourites,items);fav.textContent=exists?"♡":"♥";if(!$("favourites-view").classList.contains("hidden"))loadFavourites();}
+  const add=e.target.closest("[data-add]");
+  if(add){const song=JSON.parse(decodeURIComponent(add.dataset.add));const lists=readStore(STORAGE.playlists);if(!lists.length){alert("Create a playlist first, then add songs here.");showView("playlists");return;}const choice=prompt("Add to which playlist?\n"+lists.map((p,i)=>(i+1)+". "+p.name).join("\n"));const index=Number(choice)-1;if(Number.isInteger(index)&&lists[index]){if(!lists[index].songs.some(s=>songKey(s)===songKey(song)))lists[index].songs.push(song);writeStore(STORAGE.playlists,lists);add.textContent="✓";}}
+  const listen=e.target.closest("[data-listen]");
+  if(listen){$("now-title").textContent=listen.dataset.title;$("now-artist").textContent=listen.dataset.artist;if(listen.dataset.listen)window.open(listen.dataset.listen,"_blank","noopener,noreferrer");}
+  const del=e.target.closest("[data-delete-playlist]");
+  if(del){const lists=readStore(STORAGE.playlists);lists.splice(Number(del.dataset.deletePlaylist),1);writeStore(STORAGE.playlists,lists);loadPlaylists();}
 });
-$("mood-form").addEventListener("submit", async e=>{e.preventDefault(); currentMood="Trending Now"; await loadSongs($("mood-message").value);});
+$("mood-form").addEventListener("submit",e=>{e.preventDefault();loadSongs($("mood-message").value);});
 $("language").addEventListener("change",()=>loadSongs());
 let searchTimer;
-$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadSongs(),220);});
-$("playlist-form").addEventListener("submit",async e=>{
-  e.preventDefault(); const name=$("playlist-name").value.trim(); if(!name)return;
-  const res=await fetch("/api/playlists",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name})});
-  if(res.ok){$("playlist-name").value="";loadPlaylists();} else alert("That playlist name may already exist.");
-});
-loadSongs();
+$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadSongs(),180);});
+$("playlist-form").addEventListener("submit",e=>{e.preventDefault();const name=$("playlist-name").value.trim();if(!name)return;const lists=readStore(STORAGE.playlists);if(lists.some(p=>p.name.toLowerCase()===name.toLowerCase())){alert("That playlist already exists.");return;}lists.push({name,songs:[]});writeStore(STORAGE.playlists,lists);$("playlist-name").value="";loadPlaylists();});
+async function init(){
+  try{
+    const response=await fetch(new URL("songs.json",document.baseURI));
+    if(!response.ok)throw new Error("Could not load song catalogue");
+    const data=await response.json();
+    catalogue=Object.entries(data).map(([language,songs])=>({language,songs}));
+    loadSongs();
+  }catch(error){$("song-grid").innerHTML='<div class="empty-state">Could not load songs. Please refresh the page and try again.</div>';console.error(error);}
+}
+init();
