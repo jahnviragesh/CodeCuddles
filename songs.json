@@ -1,0 +1,74 @@
+{
+  "English": [
+    {
+      "title": "Golden Hour",
+      "artist": "JVKE",
+      "album": "this is what ____ feels like",
+      "mood": "Romantic",
+      "secondary_moods": [
+        "Chill"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=JVKE+Golden+Hour"
+    },
+    {
+      "title": "Good Life",
+      "artist": "OneRepublic",
+      "album": "Waking Up",
+      "mood": "Happy",
+      "secondary_moods": [
+        "Party"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=OneRepublic+Good+Life"
+    },
+    {
+      "title": "The Nights",
+      "artist": "Avicii",
+      "album": "The Days / Nights",
+      "mood": "Motivational",
+      "secondary_moods": [
+        "Energetic"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=Avicii+The+Nights"
+    },
+    {
+      "title": "Someone You Loved",
+      "artist": "Lewis Capaldi",
+      "album": "Divinely Uninspired to a Hellish Extent",
+      "mood": "Sad",
+      "secondary_moods": [
+        "Romantic"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=Lewis+Capaldi+Someone+You+Loved"
+    }
+  ],
+  "Punjabi": [
+    {
+      "title": "Excuses",
+      "artist": "AP Dhillon",
+      "album": "Hidden Gems",
+      "mood": "Chill",
+      "secondary_moods": [
+        "Romantic"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=AP+Dhillon+Excuses"
+    }
+  ],
+  "Spanish": [
+    {
+      "title": "Vivir Mi Vida",
+      "artist": "Marc Anthony",
+      "album": "3.0",
+      "mood": "Party",
+      "secondary_moods": [
+        "Happy"
+      ],
+      "img": "",
+      "link": "https://www.youtube.com/results?search_query=Marc+Anthony+Vivir+Mi+Vida"
+    }
+  ]
+}
